@@ -1,10 +1,230 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datos Colombia</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            text-align: center;
+            margin-top: 40px;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            max-width: 550px;
+            margin: auto;
+            border-top: 5px solid #FFCD00;
+            border-bottom: 5px solid #CE1126;
+        }
+        h1 { color: #003087; margin-bottom: 5px; }
+        .subtitle { color: #666; margin-bottom: 25px; font-size: 0.9em; }
+
+        input {
+            padding: 12px;
+            width: 65%;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            outline: none;
+            font-size: 16px;
+        }
+        input:focus { border-color: #003087; }
+        button {
+            padding: 12px 20px;
+            background-color: #003087;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #001f5c; }
+
+        /* Estilos de la nueva tarjeta enriquecida */
+        .result-card {
+            background-color: #f8fbff;
+            border: 1px solid #cce0ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+            text-align: left;
+        }
+        .result-title {
+            color: #003087;
+            margin-top: 0;
+            border-bottom: 2px solid #cce0ff;
+            padding-bottom: 10px;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .data-item {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #eee;
+            font-size: 0.95em;
+        }
+        .data-item span { display: block; color: #666; font-size: 0.85em; margin-bottom: 3px; }
+        .data-item strong { color: #222; }
+
+        /* Estilos para los datos dinámicos extra */
+        .extra-data-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #ccc;
+        }
+        .extra-data-section h3 {
+            font-size: 1em;
+            color: #444;
+            margin-bottom: 10px;
+        }
+        .extra-list {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            font-size: 0.85em;
+            color: #555;
+            max-height: 150px;
+            overflow-y: auto; /* Scroll si hay mucha info */
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .extra-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .extra-list li:last-child { border-bottom: none; }
+        .extra-list strong { color: #333; }
+
+        .error { color: #CE1126; font-weight: bold; margin-top: 15px; }
+    </style>
 </head>
 <body>
-$END$
+
+<div class="container">
+    <h1>Datos Abiertos 🇨🇴</h1>
+    <p class="subtitle">Consulta avanzada de Municipios</p>
+
+    <input type="text" id="city-input" placeholder="Ej. Barranquilla, Leticia...">
+    <button id="fetch-btn">Buscar</button>
+
+    <p id="error-message" class="error"></p>
+
+    <div id="result-container" class="result-card">
+        <h2 id="res-municipio-title" class="result-title"></h2>
+
+        <div class="data-grid">
+            <div class="data-item">
+                <span>🗺️ Departamento</span>
+                <strong id="res-departamento"></strong>
+            </div>
+            <div class="data-item">
+                <span>📍 Tipo / Región</span>
+                <strong id="res-region"></strong>
+            </div>
+            <div class="data-item">
+                <span>🔢 Cód. Departamento</span>
+                <strong id="res-cod-depto"></strong>
+            </div>
+            <div class="data-item">
+                <span>🔢 Cód. Municipio</span>
+                <strong id="res-cod-mpio"></strong>
+            </div>
+        </div>
+
+        <div class="extra-data-section" id="extra-data-section">
+            <h3>Datos Técnicos Adicionales:</h3>
+            <ul id="extra-data-list" class="extra-list"></ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    const btn = document.getElementById('fetch-btn');
+    const input = document.getElementById('city-input');
+    const resultContainer = document.getElementById('result-container');
+    const errorMessage = document.getElementById('error-message');
+
+    btn.addEventListener('click', async () => {
+        const query = input.value.trim();
+
+        errorMessage.textContent = '';
+        resultContainer.style.display = 'none';
+
+        if (!query) {
+            errorMessage.textContent = 'Ey, escribe un municipio primero.';
+            return;
+        }
+
+        try {
+            const url = `https://www.datos.gov.co/resource/gdxc-w37w.json?$q=${encodeURIComponent(query)}&$limit=1`;
+            const response = await fetch(url);
+
+            if (!response.ok) throw new Error('Error al conectar con la API.');
+
+            const data = await response.json();
+            if (data.length === 0) throw new Error('Municipio no encontrado.');
+
+            const muni = data[0]; // Nuestro objeto con todos los datos
+
+            // 1. Llenamos los datos principales de la cuadrícula
+            document.getElementById('res-municipio-title').textContent = "🏙️ " + (muni.nom_mpio || muni.municipio || "No disponible");
+            document.getElementById('res-departamento').textContent = muni.dpto || muni.departamento || "N/A";
+            document.getElementById('res-region').textContent = muni.tipo_municipio || muni.region || "N/A";
+            document.getElementById('res-cod-depto').textContent = muni.cod_depto || "N/A";
+            document.getElementById('res-cod-mpio').textContent = muni.cod_mpio || "N/A";
+
+            // 2. ¡LA MAGIA! Llenamos los datos extra dinámicamente
+            const extraList = document.getElementById('extra-data-list');
+            extraList.innerHTML = ''; // Limpiamos la lista anterior
+
+            // Lista de propiedades que YA mostramos arriba (para no repetirlas)
+            const propiedadesOmitidas = ['nom_mpio', 'municipio', 'dpto', 'departamento', 'tipo_municipio', 'region', 'cod_depto', 'cod_mpio'];
+
+            let hayDatosExtra = false;
+
+            // Recorremos TODO el objeto que nos devolvió la API
+            for (const [clave, valor] of Object.entries(muni)) {
+                // Si la clave NO está en las omitidas, la agregamos a la lista
+                if (!propiedadesOmitidas.includes(clave)) {
+                    hayDatosExtra = true;
+                    const li = document.createElement('li');
+                    // Formateamos la clave para que se vea bonita (ej: 'id_provincia' -> 'ID PROVINCIA')
+                    const claveBonita = clave.replace(/_/g, ' ').toUpperCase();
+                    li.innerHTML = `<strong>${claveBonita}:</strong> ${valor}`;
+                    extraList.appendChild(li);
+                }
+            }
+
+            // Ocultamos la sección extra si la API no mandó más nada
+            document.getElementById('extra-data-section').style.display = hayDatosExtra ? 'block' : 'none';
+
+            resultContainer.style.display = 'block';
+
+        } catch (error) {
+            errorMessage.textContent = error.message;
+        }
+    });
+
+    // Búsqueda con "Enter"
+    input.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') btn.click();
+    });
+</script>
 </body>
 </html>
